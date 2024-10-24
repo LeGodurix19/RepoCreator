@@ -2,6 +2,14 @@ import os
 from commands import run_command, save_requirements_no_versions
 from git_utils import initialize_git
 
+def create_env_example_file(use_postgres):
+    with open(".env_example", "w") as env_file:
+        env_file.write(f"EXTERNAL_PORT=\n")
+        if use_postgres:
+            env_file.write(
+                f"POSTGRES_DB=\nPOSTGRES_USER=\nPOSTGRES_PASSWORD=\nPOSTGRES_PORT=\n"
+            )
+
 def create_env_files(project_name, external_port, use_postgres, postgres_config=None):
     with open(".env", "w") as env_file:
         env_file.write(f"EXTERNAL_PORT={external_port}\n")
@@ -12,6 +20,8 @@ def create_env_files(project_name, external_port, use_postgres, postgres_config=
                 f"POSTGRES_PASSWORD={postgres_config['password']}\n"
                 f"POSTGRES_PORT={postgres_config['port']}\n"
             )
+    create_env_example_file(use_postgres)
+            
 
 def create_docker_compose(project_name, external_port, use_postgres, project_type, postgres_config=None):
     with open("docker-compose.yml", "w") as f:
@@ -22,15 +32,15 @@ services:
 """)
         if project_type == "django":
             f.write(f"""
-    command: python manage.py runserver 0.0.0.0:8000
+    command: python manage.py runserver 0.0.0.0:$EXTERNAL_PORT
 """)
         else:
             f.write(f"""
-    command: python app.py --host 0.0.0.0
+    command: python app.py --host 0.0.0.0 --port $EXTERNAL_PORT
 """)
         f.write(f"""
     ports:
-      - "{external_port}:{"8000" if project_type == "django" else "5000"}"
+      - "$EXTERNAL_PORT:$EXTERNAL_PORT"
     env_file:
       - .env
 """)
@@ -39,11 +49,11 @@ services:
   db:
     image: postgres:13
     ports:
-      - "{postgres_config['port']}:5432"
+      - "${{POSTGRES_PORT}}:5432"
     environment:
-      POSTGRES_DB: {postgres_config['db']}
-      POSTGRES_USER: {postgres_config['user']}
-      POSTGRES_PASSWORD: {postgres_config['password']}
+      POSTGRES_DB: $POSTGRES_DB
+      POSTGRES_USER: $POSTGRES_USER
+      POSTGRES_PASSWORD: $POSTGRES_PASSWORD
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
